@@ -6,23 +6,26 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 	"syscall"
 )
 
 func main() {
+	sigcatch() //シグナルハンドリング
+	ia := 0    //履歴番号
 	scanner := bufio.NewReader(os.Stdin)
-	ia := 0 //履歴番号
 	for {
 		fmt.Printf("./myshell[%02d]>", ia)  //shell
 		in, err := scanner.ReadString('\n') //テキスト読み取り
-		if err == io.EOF {                  //Ctrl+Dのとき
+
+		if err == io.EOF { //Ctrl+Dのとき
 			fmt.Printf("\n")
 			os.Exit(0)
 		}
 		in = strings.Trim(in, "\n")
 		if in == "bye" { //byeのとき
-			break
+			os.Exit(0)
 		}
 
 		com := strings.Split(in, " ")
@@ -75,7 +78,7 @@ func main() {
 		} else if rdflag == 3 { //パイプ時
 			pipecomgo(com[:(pipenum-1)], com[pipenum+1:])
 			ia++
-			continue
+			continue //最初に戻る
 		}
 
 		if thflag == 2 && comnum == 1 { //失敗時
@@ -86,8 +89,24 @@ func main() {
 			//fmt.Println("onecom")
 			comgo(onecom)
 		}
-		ia++ //番号更新
+		ia++
 	}
+}
+
+func sigcatch() {
+	sigch := make(chan os.Signal, 1) //シグナルを受け取るところ
+	signal.Notify(sigch, syscall.SIGINT)
+	go func() { //シグナル取得時の処理
+		for {
+			s := <-sigch
+			switch s {
+			case syscall.SIGINT:
+				fmt.Printf(" (SIGINT cought!)\n")
+			default:
+				fmt.Printf("Unknown signal %d !\n", s)
+			}
+		}
+	}()
 }
 
 func comgo(com []string) int {
@@ -100,7 +119,6 @@ func comgo(com []string) int {
 		//log.Fatalf("%s not found in $PATH.", com[0])
 		return 1
 	} else { //存在したら
-		fmt.Println("OK")
 		args := com[0:]
 		attr := syscall.ProcAttr{Files: []uintptr{0, 1, 2}}
 		pid, err := syscall.ForkExec(cpath, args, &attr)
@@ -203,6 +221,8 @@ func rdcomgo_r(com string, f string) int {
 
 }
 
+//なぜか正常に出力されない、なぜ？
+//数字が1だけ違う...原因が本当に不明
 func pipecomgo(com1 []string, com2 []string) int {
 	// make a pipe
 	pin, pout, err := os.Pipe()

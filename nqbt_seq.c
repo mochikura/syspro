@@ -100,6 +100,7 @@ int main(int argc, char *argv[])
 		mat[i] = 0U;
 
 	/* query */
+	//このfor文を並列化
 	#pragma omp parallel for private(mat) reduction(+:count)
 	for (i = n - 1; i >= 0; i--){
 		count += check_and_set(mat,n, i, 0);
